@@ -2,7 +2,7 @@ import os
 from os.path import join
 import re
 from ast import literal_eval
-from pandas import read_csv
+from pandas import DataFrame, read_csv
 
 import numpy as np
 
@@ -251,7 +251,7 @@ class MesaData:
 
             _dataframe = read_csv(file, sep="\s+", dtype=None)
             _records = _dataframe.to_records(index=False)
-            
+
             self.bulk_data = np.array(_records, dtype=_records.dtype.descr)
 
         self.header_data = dict(zip(self.header_names, header_data))
@@ -731,18 +731,19 @@ class MesaData:
             return None
         if dbg:
             print("Scrubbing history...")
-        to_remove = []
-        for i in range(len(self.data("model_number")) - 1):
-            smallest_future = np.min(self.data("model_number")[i + 1 :])
-            if self.data("model_number")[i] >= smallest_future:
-                to_remove.append(i)
-        if len(to_remove) == 0:
+
+        model_numbers = DataFrame(self.data["model_number"])
+        kept_indices = model_numbers.drop_duplicates(keep="last").index
+        
+        if len(model_numbers) - len(kept_indices) == 0:
             if dbg:
                 print("Already clean!")
-            return None
+            return
         if dbg:
-            print("Removing {} lines.".format(len(to_remove)))
-        self.bulk_data = np.delete(self.bulk_data, to_remove)
+            print(f"Found {len(model_numbers) - len(kept_indices)} lines to remove.")
+
+        self.bulk_data = self.bulk_data[kept_indices]
+        return
 
     def __getattr__(self, method_name):
         if self._any_version(method_name):
