@@ -238,10 +238,12 @@ class MesaData:
                 file.readline()
 
             self.bulk_names = file.readline().split(None, -1)
-            data_elements = file.readline().split(None, -1)
 
+            data_elements = file.readline().split(None, -1)
             data_types = self._get_dtype(self.bulk_names, data_elements)
 
+            # rewind & read data
+            file.seek(0)
             self.bulk_data = np.loadtxt(file, dtype=data_types, skiprows=MesaData.bulk_names_line)
 
         self.header_data = dict(zip(self.header_names, header_data))
