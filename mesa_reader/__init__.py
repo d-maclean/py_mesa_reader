@@ -2,6 +2,7 @@ import os
 from os.path import join
 import re
 from ast import literal_eval
+from pandas import read_csv
 
 import numpy as np
 
@@ -225,7 +226,9 @@ class MesaData:
         -------
         None
         """
-        # attempting to speed up this process with some dirty tricks
+        # I'm attempting to speed up this process with some dirty tricks
+        # Using pandas's read_csv function gives us c-like performance as 
+        # opposed to genfromtxt's native (slow, icky) python
         with open(self.file_name, "r") as file:
 
             for _ in range(MesaData.header_names_line - 1):
@@ -238,18 +241,18 @@ class MesaData:
                 file.readline()
 
             self.bulk_names = file.readline().split(None, -1)
-
-            pos_0 = file.tell()
             data_elements = file.readline().split(None, -1)
-            pos_1 = file.tell()
-            pos_diff = pos_1 - pos_0 # length of data line 1
-
             data_types = self._get_dtype(self.bulk_names, data_elements)
 
-            # rewind & read data
-            file.seek(-pos_diff)
-            self.bulk_data = np.fromfile(file, dtype=data_types, sep=" ")
-            #self.bulk_data = np.loadtxt(file, dtype=data_types, skiprows=MesaData.bulk_names_line)
+        # rewind & read
+        with open(self.file_name, "r") as file:
+            for _ in range(MesaData.bulk_names_line - 1):
+                file.readline()
+
+            _dataframe = read_csv(file, sep="\s+", dtype=None)
+            _records = _dataframe.to_records(index=False)
+            
+            self.bulk_data = np.array(_records, dtype=_records.dtype.descr)
 
         self.header_data = dict(zip(self.header_names, header_data))
         self.remove_backups()
