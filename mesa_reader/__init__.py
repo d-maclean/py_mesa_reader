@@ -2,6 +2,7 @@ import os
 from os.path import join
 import re
 from ast import literal_eval
+from pandas import DataFrame, read_csv
 
 import numpy as np
 
@@ -225,7 +226,9 @@ class MesaData:
         -------
         None
         """
-        # attempting to speed up this process with some dirty tricks
+        # I'm attempting to speed up this process with some dirty tricks
+        # Using pandas's read_csv function gives us c-like performance as 
+        # opposed to genfromtxt's native (slow, icky) python
         with open(self.file_name, "r") as file:
 
             for _ in range(MesaData.header_names_line - 1):
@@ -238,13 +241,18 @@ class MesaData:
                 file.readline()
 
             self.bulk_names = file.readline().split(None, -1)
-
             data_elements = file.readline().split(None, -1)
             data_types = self._get_dtype(self.bulk_names, data_elements)
 
-            # rewind & read data
-            file.seek(0)
-            self.bulk_data = np.loadtxt(file, dtype=data_types, skiprows=MesaData.bulk_names_line)
+        # rewind & read
+        with open(self.file_name, "r") as file:
+            for _ in range(MesaData.bulk_names_line - 1):
+                file.readline()
+
+            _dataframe = read_csv(file, sep="\s+", dtype=None)
+            _records = _dataframe.to_records(index=False)
+
+            self.bulk_data = np.array(_records, dtype=_records.dtype.descr)
 
         self.header_data = dict(zip(self.header_names, header_data))
         self.remove_backups()
@@ -723,18 +731,19 @@ class MesaData:
             return None
         if dbg:
             print("Scrubbing history...")
-        to_remove = []
-        for i in range(len(self.data("model_number")) - 1):
-            smallest_future = np.min(self.data("model_number")[i + 1 :])
-            if self.data("model_number")[i] >= smallest_future:
-                to_remove.append(i)
-        if len(to_remove) == 0:
+
+        model_numbers = DataFrame(self.data("model_number"))
+        kept_indices = model_numbers.drop_duplicates(keep="last").index
+        
+        if len(model_numbers) - len(kept_indices) == 0:
             if dbg:
                 print("Already clean!")
-            return None
+            return
         if dbg:
-            print("Removing {} lines.".format(len(to_remove)))
-        self.bulk_data = np.delete(self.bulk_data, to_remove)
+            print(f"Found {len(model_numbers) - len(kept_indices)} lines to remove.")
+
+        self.bulk_data = self.bulk_data[kept_indices]
+        return
 
     def __getattr__(self, method_name):
         if self._any_version(method_name):
