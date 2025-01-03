@@ -1,6 +1,7 @@
 import os
 from os.path import join
 import re
+from ast import literal_eval
 
 import numpy as np
 
@@ -148,6 +149,32 @@ class MesaData:
             return "MESA model # {:6}, t = {:20.10g} yr".format(model_number, age)
         except Exception:
             return "{}".format(self.file_name)
+        
+            
+    def _get_dtype(self, names, data) -> np.ndarray:
+        """Heuristic datatype determination using the first line of the log file."""
+        if not hasattr(data, '__iter__'):
+            data = np.asarray([data])
+
+        types = []
+
+        for i, record in enumerate(data):
+            try:
+                record = literal_eval(record)
+                if type(record) == float:
+                    types.append((names[i], 'float64'))
+                elif type(record) == int:
+                    types.append((names[i],'int64'))
+
+            except ValueError:
+                if record == "NaN":
+                    types.append((names[i], 'float64'))
+                elif type(record) == str:
+                    types.append((names[i], 'U128'))
+        
+        dtype = np.dtype(types)
+
+        return dtype
 
     def read_data(self):
         """Decide if data file is log output or a model, then load the data
@@ -196,23 +223,25 @@ class MesaData:
         -------
         None
         """
-        self.bulk_data = np.genfromtxt(
-            self.file_name,
-            skip_header=MesaData.bulk_names_line - 1,
-            names=True,
-            ndmin=1,  # Make sure a single entry is still a 1D array
-            dtype=None,
-        )
-        self.bulk_names = self.bulk_data.dtype.names
-        header_data = []
-        with open(self.file_name) as f:
-            for i, line in enumerate(f):
-                if i == MesaData.header_names_line - 1:
-                    self.header_names = line.split()
-                elif i == MesaData.header_names_line:
-                    header_data = [eval(datum) for datum in line.split()]
-                elif i > MesaData.header_names_line:
-                    break
+        # attempting to speed up this process with some dirty tricks
+        with open(self.file_name, "r") as file:
+
+            for _ in range(MesaData.header_names_line - 1):
+                file.readline() # skip 1st line
+
+            self.header_names = file.readline().split(None, -1)
+            header_data = file.readline().split(None, -1)
+
+            for _ in range(2):
+                file.readline()
+
+            self.bulk_names = file.readline().split(None, -1)
+            data_elements = file.readline().split(None, -1)
+
+            data_types = self.get_dtype(self.bulk_names, data_elements)
+
+            self.bulk_data = np.loadtxt(file, dtype=data_types, skiprows=MesaData.bulk_names_line)
+
         self.header_data = dict(zip(self.header_names, header_data))
         self.remove_backups()
 
