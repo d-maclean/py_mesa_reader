@@ -732,7 +732,7 @@ class MesaData:
         if dbg:
             print("Scrubbing history...")
 
-        model_numbers = DataFrame(self.data["model_number"])
+        model_numbers = DataFrame(self.data("model_number"))
         kept_indices = model_numbers.drop_duplicates(keep="last").index
         
         if len(model_numbers) - len(kept_indices) == 0:
