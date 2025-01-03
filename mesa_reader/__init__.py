@@ -169,6 +169,8 @@ class MesaData:
             except ValueError:
                 if record == "NaN":
                     types.append((names[i], 'float64'))
+                if record.lower() in ["true", "false"]:
+                    types.append((names[i], '?'))
                 elif type(record) == str:
                     types.append((names[i], 'U128'))
         
