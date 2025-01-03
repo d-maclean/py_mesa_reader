@@ -238,7 +238,7 @@ class MesaData:
             self.bulk_names = file.readline().split(None, -1)
             data_elements = file.readline().split(None, -1)
 
-            data_types = self.get_dtype(self.bulk_names, data_elements)
+            data_types = self._get_dtype(self.bulk_names, data_elements)
 
             self.bulk_data = np.loadtxt(file, dtype=data_types, skiprows=MesaData.bulk_names_line)
 
