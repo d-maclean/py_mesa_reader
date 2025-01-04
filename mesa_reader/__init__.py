@@ -151,33 +151,6 @@ class MesaData:
         except Exception:
             return "{}".format(self.file_name)
         
-            
-    def _get_dtype(self, names, data) -> np.ndarray:
-        """Heuristic datatype determination using the first line of the log file."""
-        if not hasattr(data, '__iter__'):
-            data = np.asarray([data])
-
-        types = []
-
-        for i, record in enumerate(data):
-            try:
-                record = literal_eval(record)
-                if type(record) == float:
-                    types.append((names[i], 'float64'))
-                elif type(record) == int:
-                    types.append((names[i],'int64'))
-
-            except ValueError:
-                if record == "NaN":
-                    types.append((names[i], 'float64'))
-                if record.lower() in ["true", "false"]:
-                    types.append((names[i], '?'))
-                elif type(record) == str:
-                    types.append((names[i], 'U128'))
-        
-        dtype = np.dtype(types)
-
-        return dtype
 
     def read_data(self):
         """Decide if data file is log output or a model, then load the data
@@ -240,18 +213,10 @@ class MesaData:
             for _ in range(2):
                 file.readline()
 
-            self.bulk_names = file.readline().split(None, -1)
-            data_elements = file.readline().split(None, -1)
-            data_types = self._get_dtype(self.bulk_names, data_elements)
-
-        # rewind & read
-        with open(self.file_name, "r") as file:
-            for _ in range(MesaData.bulk_names_line - 1):
-                file.readline()
-
             _dataframe = read_csv(file, sep="\s+", dtype=None)
             _records = _dataframe.to_records(index=False)
 
+            self.bulk_names = _dataframe.columns.values
             self.bulk_data = np.array(_records, dtype=_records.dtype.descr)
 
         self.header_data = dict(zip(self.header_names, header_data))
