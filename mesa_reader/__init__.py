@@ -249,7 +249,7 @@ class MesaData:
             for _ in range(MesaData.bulk_names_line - 1):
                 file.readline()
 
-            _dataframe = read_csv(file, sep="\s+", dtype=None)
+            _dataframe = read_csv(file, sep="\s+", dtype=data_types)
             _records = _dataframe.to_records(index=False)
 
             self.bulk_data = np.array(_records, dtype=_records.dtype.descr)
